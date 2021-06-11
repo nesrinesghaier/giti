@@ -1,26 +1,30 @@
 package utils;
 
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
 import java.nio.file.Paths;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+
 public final class Config {
-    public static boolean isBare() {
+    public static boolean assertNotBare() throws Exception {
+        if (readBareCheckFromConfig()){
+            throw new Exception("this operation must be run in a work tree");
+        }
         return false;
     }
 
-    public static boolean read() {
-        String configPath = RepoFiles.getPGitPath("config");
+    private Config() {
+    }
+
+    public static boolean readBareCheckFromConfig() {
+        String configPath = RepoFiles.getPGitPath("");
         assert configPath != null;
-        String configJson = RepoFiles.read(Paths.get(configPath));
-        JSONParser jsonParser = new JSONParser();
-        try {
-            Object parse = jsonParser.parse(configJson);
-        } catch (ParseException e) {
-            e.printStackTrace();
+        String configString = RepoFiles.read(Paths.get(configPath, "config"));
+        if (configString != null) {
+            JsonElement je = JsonParser.parseString(configString);
+            return je.getAsJsonObject().get("core").getAsJsonObject().get("bare").getAsBoolean();
         }
-        return true;
+        return false;
     }
 
 }

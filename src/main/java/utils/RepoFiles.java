@@ -1,41 +1,67 @@
 package utils;
 
-import org.json.simple.JSONObject;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+
+import static java.util.Objects.isNull;
 
 public final class RepoFiles {
     private RepoFiles() {
     }
 
+    private static Boolean inRepo;
+    public static String gitiPath = System.getProperty("user.dir");
 
-    public static boolean inRepo() {
-        return getPGitPath("") != null;
+    public static boolean inGitiRepo() {
+        if (isNull(inRepo)) {
+            gitiPath = getGitiPath("");
+            inRepo = !isNull(gitiPath);
+        }
+        return inRepo;
     }
 
-    public static String getPGitPath(String dir) {
+    public static String getGitiPath(String dir) {
         try {
-            Path realPath = Paths.get(dir).toAbsolutePath().normalize();
+            Path p = Paths.get(System.getProperty("user.dir"));
+            Path realPath = p;
+            //            final String userDir = dir.isEmpty() ? System.getProperty("user.dir") : dir;
+            boolean realFile = Paths.get(dir).toFile().exists();
+            if (!realFile) {
+                realPath = Paths.get(gitiPath, dir);
+            }
             String path = realPath.toString();
+            if (dir.equalsIgnoreCase(gitiPath)) {
+                path = gitiPath;
+            }
             if (Files.isDirectory(realPath) || Files.exists(realPath)) {
                 File potentialConfigFile = new File(path, "config");
-                File potentialPGitPath = new File(path, ".pgit");
-                String regex = "\\[core]";
+                File potentialGitiPath = new File(path, ".giti");
+                File otherFile = new File(path);
+                String regex = "\"core\"";
                 Pattern pattern = Pattern.compile(regex);
 
                 if (potentialConfigFile.exists()
                         && potentialConfigFile.isFile()
-                        && java.nio.file.Files.lines(potentialConfigFile.toPath()).anyMatch(s -> pattern.matcher(s).find())) {
-                    return path;
-                } else if (potentialPGitPath.isDirectory()) {
-                    return potentialPGitPath.toString();
-                } else if (!path.equals("/")) {
-                    return getPGitPath(Paths.get(path, "..").toString());
+                        && Files.lines(potentialConfigFile.toPath())
+                        .anyMatch(s -> pattern.matcher(s).find())) {
+                    return potentialConfigFile.toString();
+                } else if (otherFile.exists() && otherFile.isFile()) {
+                    return otherFile.toString();
+                } else if (potentialGitiPath.isDirectory()) {
+                    return potentialGitiPath.toString();
+                } else if (!path.equals("/") && !path.contains(":\\")) {
+                    return getGitiPath(Paths.get(path, "..").toString());
                 }
             }
         } catch (IOException e) {
@@ -45,10 +71,12 @@ public final class RepoFiles {
     }
 
     public static void assertInRepo() {
-        if (!inRepo()) try {
-            throw new Exception("not a Pgit repository");
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (!inGitiRepo()) {
+            try {
+                throw new Exception("not a Pgit repository");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -63,20 +91,52 @@ public final class RepoFiles {
         return null;
     }
 
-    public static JSONObject initRepoStructure(boolean bareRepoOption) {
-        JSONObject bareRepoStructure = new JSONObject();
-        JSONObject repoStructure = new JSONObject();
-        bareRepoStructure.put("HEAD", "ref: refs/heads/master\n");
-        JSONObject config = new JSONObject();
-        JSONObject bare = new JSONObject();
-        JSONObject heads = new JSONObject();
-        bare.put("", "bare = " + bareRepoOption + "\n");
-        config.put("core", bare);
-        bareRepoStructure.put("config", "[core]\n bare = " + bareRepoOption + "\n");
-        heads.put("heads", new JSONObject());
-        bareRepoStructure.put("objects", new JSONObject());
-        bareRepoStructure.put("refs", heads);
-        repoStructure.put(".pgit", bareRepoStructure);
+    public static JsonObject initRepoStructure(boolean bareRepoOption) {
+        JsonObject bareRepoStructure = new JsonObject();
+        JsonObject repoStructure = new JsonObject();
+        bareRepoStructure.addProperty("HEAD", "ref: refs/heads/master");
+        JsonObject config = new JsonObject();
+        JsonObject bare = new JsonObject();
+        JsonArray core = new JsonArray();
+        bare.addProperty("bare", bareRepoOption);
+        bare.addProperty("repositoryformatversion", 0);
+        core.add(bare);
+        config.add("core", bare);
+        JsonObject heads = new JsonObject();
+        bareRepoStructure.add("config", config);
+        heads.add("heads", new JsonObject());
+        bareRepoStructure.add("objects", new JsonObject());
+        bareRepoStructure.add("refs", heads);
+        repoStructure.add(".giti", bareRepoStructure);
         return repoStructure;
+    }
+
+    public static JsonObject initRepoMetaData() {
+        JsonObject jsonElement = new JsonObject();
+        jsonElement.addProperty("HEAD", "file");
+        jsonElement.addProperty("config", "file");
+        for (String s : Arrays.asList("refs", "heads", "objects", ".giti")) {
+            jsonElement.addProperty(s, "directory");
+        }
+        return jsonElement;
+    }
+
+    public static Path pathFromRoot(String path) {
+        Path absolutePath = workingCopyPath("");
+        String repoRoot = System.getProperty("user.dir");
+        return absolutePath.relativize(Paths.get(repoRoot, path));
+    }
+
+    private static Path workingCopyPath(String path) {
+        return Paths.get(Paths.get(RepoFiles.getGitiPath(""), "..").toString(), path);
+    }
+
+    public static boolean hasFile(Path path, int stage) {
+        return false;
+    }
+
+    public static void readIndexFile() {
+        String indexFilePath = getGitiPath("index");
+
     }
 }

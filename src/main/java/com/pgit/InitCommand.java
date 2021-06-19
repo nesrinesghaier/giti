@@ -1,8 +1,5 @@
 package com.pgit;
 
-import picocli.CommandLine;
-import utils.RepoFiles;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -13,7 +10,13 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.json.simple.JSONObject;
+import com.github.underscore.lodash.U;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
+import picocli.CommandLine;
+import utils.RepoFiles;
+import utils.SystemConfig;
 
 @CommandLine.Command(name = "init")
 public class InitCommand implements Runnable {
@@ -31,41 +34,53 @@ public class InitCommand implements Runnable {
     }
 
     public void init(boolean bareRepoOption) {
-        if (RepoFiles.inRepo()) {
+        if (RepoFiles.inGitiRepo()) {
             System.out.println("Already in a repo");
             return;
         }
-        JSONObject repoStructure = RepoFiles.initRepoStructure(bareRepoOption);
-        writeFilesFromTree(bareRepoOption ? (JSONObject) repoStructure.get(".pgit") : repoStructure, System.getProperty("user.dir"));
-        System.out.println("Initialized empty Git repository");
+        JsonObject repoStructure = RepoFiles.initRepoStructure(bareRepoOption);
+        JsonObject metaData = RepoFiles.initRepoMetaData();
+        writeFilesFromTree(bareRepoOption ? repoStructure.getAsJsonObject(".giti") : repoStructure,
+                System.getProperty("user.dir"), metaData);
+        System.out.println("Initialized empty Giti repository");
     }
 
-    void writeFilesFromTree(JSONObject structure, String prefix) {
-        for (Object key : structure.keySet()) {
-            Object value = structure.get(key);
-            Path path = Paths.get(prefix, key.toString());
-            if (value instanceof String) {
-                try {
-//                    String filePath = Paths.get(path.toString(), key.toString()).toString();
-                    File newCreatedFile = new File(path.toString());
-                    boolean fileCreated = newCreatedFile.createNewFile();
-                    if (fileCreated) {
-                        FileWriter fileWriter = new FileWriter(newCreatedFile);
-                        fileWriter.write((String) value);
-                        fileWriter.close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            } else {
-                if (!path.toFile().exists()) {
+    void writeFilesFromTree(JsonObject structure, String prefix, JsonObject metadata) {
+        for (Map.Entry<String, JsonElement> entry: structure.entrySet()) {
+            Path path = Paths.get(prefix, entry.getKey());
+            if (metadata.get(entry.getKey()) != null) {
+                if (metadata.get(entry.getKey()).getAsString().equalsIgnoreCase("file")) {
                     try {
-                        Files.createDirectory(path, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxrwxrwx")));
+                        File newCreatedFile = new File(path.toString());
+                        boolean fileIsCreated = newCreatedFile.createNewFile();
+                        if (fileIsCreated) {
+                            FileWriter fileWriter = new FileWriter(newCreatedFile);
+                            if(entry.getValue().isJsonPrimitive()){
+                                String value =  entry.getValue().getAsString();
+                                fileWriter.write(value);
+                            }else{
+                                fileWriter.write(U.formatJson(entry.getValue().toString()));
+                            }
+                            fileWriter.close();
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    try {
+                        if (SystemConfig.isPosix) {
+                            Files.createDirectory(path,
+                                    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxrwxrwx")));
+                        } else {
+                            Files.createDirectory(path);
+                        }
+                        if (entry.getValue().isJsonObject()){
+                            writeFilesFromTree(entry.getValue().getAsJsonObject(), path.toString(), metadata);
+                        }
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
                 }
-                writeFilesFromTree((JSONObject) value, path.toString());
             }
         }
     }
@@ -75,9 +90,9 @@ public class InitCommand implements Runnable {
         Config config;
 
         public static class Config {
-            HashMap<Object, Object> core;
+            HashMap<String, Object> core;
 
-            public Config(HashMap<Object, Object> core) {
+            public Config(HashMap<String, Object> core) {
                 this.core = core;
             }
         }
@@ -91,21 +106,6 @@ public class InitCommand implements Runnable {
             this.objects = objects;
             this.refs = refs;
         }
-    }
-
-    private Path pathFromRepo(String path) {
-        try {
-            Path absolutePath = workingCopyPath("");
-            String repoRoot = System.getProperty("user.dir");
-            return absolutePath.relativize(Paths.get(repoRoot, path));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private Path workingCopyPath(String path) throws IOException {
-        return Paths.get(Paths.get(RepoFiles.getPGitPath(""), "..").toString(), path);
     }
 
 }

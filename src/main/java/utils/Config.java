@@ -17,9 +17,10 @@ public final class Config {
     }
 
     public static boolean readBareCheckFromConfig() {
-        String configPath = RepoFiles.getPGitPath("");
+        String gitiPath = RepoFiles.gitiPath;
+        String configPath = RepoFiles.getGitiPath(Paths.get(gitiPath).toString());
         assert configPath != null;
-        String configString = RepoFiles.read(Paths.get(configPath, "config"));
+        String configString = RepoFiles.read(Paths.get(configPath));
         if (configString != null) {
             JsonElement je = JsonParser.parseString(configString);
             return je.getAsJsonObject().get("core").getAsJsonObject().get("bare").getAsBoolean();

@@ -1,14 +1,21 @@
 package utils;
 
-import java.nio.file.Paths;
-
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import exception.GitiException;
+
+import java.nio.file.Paths;
+
+import static java.util.Objects.requireNonNull;
 
 public final class Config {
-    public static boolean assertNotBare() throws Exception {
-        if (readBareCheckFromConfig()){
-            throw new Exception("this operation must be run in a work tree");
+    public static Boolean isBareRepo = null;
+
+    public static boolean assertNotBare() throws GitiException {
+        if (isBareRepo != null) return isBareRepo;
+        isBareRepo = readBareCheckFromConfig();
+        if (isBareRepo) {
+            throw new GitiException("this operation must be run in a work tree");
         }
         return false;
     }
@@ -16,14 +23,18 @@ public final class Config {
     private Config() {
     }
 
-    public static boolean readBareCheckFromConfig() {
-        String gitiPath = RepoFiles.gitiPath;
-        String configPath = RepoFiles.getGitiPath(Paths.get(gitiPath).toString());
-        assert configPath != null;
-        String configString = RepoFiles.read(Paths.get(configPath));
-        if (configString != null) {
-            JsonElement je = JsonParser.parseString(configString);
-            return je.getAsJsonObject().get("core").getAsJsonObject().get("bare").getAsBoolean();
+    //read bare value from config file
+    public static boolean readBareCheckFromConfig() throws GitiException {
+        String gitiPath = RepoFiles.gitiDirPath;
+        try {
+            String configPath = RepoFiles.getFullPathIfExists(Paths.get(gitiPath), false, "config");
+            String configString = RepoFiles.read(Paths.get(requireNonNull(configPath)));
+            if (configString != null) {
+                JsonElement je = JsonParser.parseString(configString);
+                return je.getAsJsonObject().get("core").getAsJsonObject().get("bare").getAsBoolean();
+            }
+        } catch (GitiException e) {
+            throw new GitiException("This operation must be run in a work-tree");
         }
         return false;
     }

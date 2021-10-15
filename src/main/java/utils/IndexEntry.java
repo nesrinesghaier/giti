@@ -1,21 +1,20 @@
 package utils;
 
-import java.io.IOException;
 import java.io.Serializable;
 
 public class IndexEntry implements Serializable {
     String filePath;
-    int contentSize;
+    String hashedContent;
     int stage;
 
-    public IndexEntry(String filePath, int stage, int contentSize) {
+    public IndexEntry(String filePath, int stage, String contentSize) {
         this.filePath = filePath;
-        this.contentSize = contentSize;
+        this.hashedContent = contentSize;
         this.stage = stage;
     }
 
     @Override
     public String toString() {
-        return filePath + " " + stage + " " + contentSize;
+        return filePath + " " + stage + " " + hashedContent;
     }
 }

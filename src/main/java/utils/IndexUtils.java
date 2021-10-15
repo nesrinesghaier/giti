@@ -2,19 +2,25 @@ package utils;
 
 import org.apache.commons.io.FileUtils;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class IndexUtils {
 
     private static final String INDEX_FILE_NAME = "index";
     private static final Set<File> filesToIndex = new HashSet<>();
+
     public static final File indexFile;
 
     static {
@@ -46,18 +52,39 @@ public final class IndexUtils {
         return false;
     }
 
-    public static void writeNonConflict(File path) {
+    public static void writeNonConflict(File file) {
         try (FileOutputStream fileOutputStream = new FileOutputStream(indexFile, true);
              PrintWriter printWriter = new PrintWriter(fileOutputStream)) {
-            boolean isInIndexFile = IndexUtils.isInIndexFile(path.getPath(), 0);
+            boolean isInIndexFile = IndexUtils.isInIndexFile(file.getPath(), 0);
             if (isInIndexFile) {
-                removeFileFromIndex(path);
+                removeFileFromIndex(file);
             }
-            IndexEntry indexEntry = new IndexEntry(path.getPath(), 0, path.getPath().getBytes().length);
+            IndexEntry indexEntry = new IndexEntry(file.getPath(), 0, hashFileContent(readFile(file)));
             printWriter.println(indexEntry);
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private static String hashFileContent(String fileContent) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(fileContent.getBytes(StandardCharsets.UTF_8));
+            return DatatypeConverter.printBase64Binary(bytes);
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    // read file content into string
+    private static String readFile(File path) {
+        try (Stream<String> stream = Files.lines(path.toPath())) {
+            return stream.collect(Collectors.joining());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "";
     }
 
     public static void removeFileFromIndex(File file) {

@@ -63,7 +63,6 @@ public class AddCommand implements Runnable {
             } else {
                 throw new GitiException(f + " does not exist and --remove not passed\n");
             }
-
         } catch (Exception e) {
             e.printStackTrace();
         }

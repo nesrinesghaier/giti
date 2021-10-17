@@ -1,5 +1,6 @@
 package utils;
 
+import exception.GitiException;
 import org.apache.commons.io.FileUtils;
 
 import javax.xml.bind.DatatypeConverter;
@@ -24,6 +25,13 @@ public final class IndexUtils {
     public static final File indexFile;
 
     static {
+        if (RepoFiles.gitiDirPath == null) {
+            try {
+                RepoFiles.inGitiRepo();
+            } catch (GitiException e) {
+                e.printStackTrace();
+            }
+        }
         indexFile = Paths.get(RepoFiles.gitiDirPath, INDEX_FILE_NAME).toFile();
     }
 
@@ -59,8 +67,12 @@ public final class IndexUtils {
             if (isInIndexFile) {
                 removeFileFromIndex(file);
             }
-            IndexEntry indexEntry = new IndexEntry(file.getPath(), 0, hashFileContent(readFile(file)));
+            String fileContent = readFile(file);
+            String hashedContent = hashFileContent(fileContent);
+            IndexEntry indexEntry = new IndexEntry(file.getPath(), 0, hashedContent);
+            ObjectsUtils.writeObjectFile(hashedContent, fileContent);
             printWriter.println(indexEntry);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
